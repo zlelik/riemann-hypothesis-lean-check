@@ -1,0 +1,5 @@
+# Check out all text files with Linux line endings (LF) on every computer, also on Windows.
+# The scripts run in Linux, where Windows line endings (CR LF) break them:
+#   /usr/bin/env: 'bash\r': No such file or directory
+* text=auto eol=lf
+*.tar.gz binary

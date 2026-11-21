@@ -17,15 +17,18 @@ The files of the Riemann Hypothesis proof are **not** part of this repository. `
 ## Quick start
 
 ```bash
-git clone <address of this repository>
-cd <repository folder>
+git clone https://github.com/zlelik/riemann-hypothesis-lean-check
+cd riemann-hypothesis-lean-check
 ./install-software.sh     # asks: 1 = Riemann Hypothesis proof, 2 = test project
 ./run-checks.sh           # checks the project that was installed last
 ```
 
 If you want to run it in Docker container, use this command:
-
+**Linux:**
 `docker run -it --rm --name rh-check -v "$PWD":/root/rh-check -w /root/rh-check buildpack-deps:noble bash`
+
+**Windows (memory configuration might be needed):**
+`docker run -it --rm --name rh-check -v "%cd%:/root/rh-check" -w /root/rh-check buildpack-deps:noble bash`
 
 **Everything is written into the folder from which you start the scripts**: the downloaded files, elan, Lean, Rust, the checking tools, the Lean projects and the results. Nothing is written into your home folder. The only exception: if system tools are missing, `install-software.sh` installs them into the operating system with `apt-get` (step 1.2). Start both scripts from the same folder, normally the repository folder.
 
