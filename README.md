@@ -1,12 +1,12 @@
 # How to verify the Lean proof of the Riemann Hypothesis claim
 
-This repository lets anyone check, on a Linux computer, the Lean proof that was released at https://alpo.ge as `lean.tar.gz.part01` to `lean.tar.gz.part14` and announced at https://lean4.dev/proofs/riemann-hypothesis-claim. It also contains a small test project. With the test project, every step can be tried in a few hours, before the check of the real proof, which takes days.
+This repository lets anyone check, on a Linux computer, the Lean proof that was released at https://alpo.ge as `lean.tar.gz.part01` to `lean.tar.gz.part14` and announced at https://lean4.dev/proofs/riemann-hypothesis-claim. All checks are automatic. The repository also contains a small test project, with which every step can be tried in about 15 minutes, before the check of the real proof, which takes days.
 
 ## Contents of this repository
 
 | File or folder | Purpose |
 |---|---|
-| `README.md` | this description: every step, with its command, folder, input, output, software and estimated time |
+| `README.md` | this description: every step, with its command, folder, input, output, software and time |
 | `install-software.sh` | section 1: asks which project to install, downloads it, checks it, and installs all software |
 | `run-checks.sh` | section 2: runs all checks and writes a summary |
 | `test-project/` | the source files of the test project (section "The two projects") |
@@ -23,15 +23,15 @@ cd <repository folder>
 ./run-checks.sh           # checks the project that was installed last
 ```
 
-Recommended order: install and check the test project first (about 1 to 3 hours of checking), then the Riemann Hypothesis proof (about 4 to 14 days of checking). Both projects can stay installed at the same time, and they share the software.
+If you want to run it in Docker container, use this command:
 
-To give the answer in advance, or to use another working folder, set environment variables:
+`docker run -it --rm --name rh-check -v "$PWD":/root/rh-check -w /root/rh-check buildpack-deps:noble bash`
 
-```bash
-PROJECT=test-project ./install-software.sh
-PROJECT=riemann-hypothesis WORK_DIR=/data/rh-check ./install-software.sh
-PROJECT=riemann-hypothesis WORK_DIR=/data/rh-check ./run-checks.sh
-```
+**Everything is written into the folder from which you start the scripts**: the downloaded files, elan, Lean, Rust, the checking tools, the Lean projects and the results. Nothing is written into your home folder. The only exception: if system tools are missing, `install-software.sh` installs them into the operating system with `apt-get` (step 1.2). Start both scripts from the same folder, normally the repository folder.
+
+Recommended order: install and check the test project first (about 15 minutes in total), then the Riemann Hypothesis proof (about 4 to 14 days of checking). Both projects can stay installed at the same time, and they share the software.
+
+To give the answer in advance: `PROJECT=test-project ./install-software.sh`. To use another folder than the current one: `WORK_DIR=/data/rh-check ./install-software.sh` and `WORK_DIR=/data/rh-check ./run-checks.sh`.
 
 With the Riemann Hypothesis proof, `run-checks.sh` runs for days. Start it so that it continues when the terminal window is closed:
 
@@ -49,8 +49,12 @@ nohup ./run-checks.sh > run-checks.out 2>&1 &
 | What it proves | the Riemann Hypothesis and the generalized Riemann Hypothesis for Dirichlet L-functions, in five main theorems | for every real number x: sin(x)² + cos(x)² = 1, in one main theorem |
 | Size | 175,187 Lean files, about 1.5 million definitions and theorems | 3 Lean files, 5 definitions and theorems |
 | Lean version and libraries | Lean 4.33.1; Mathlib at commit `0df444a3…` and 8 helper libraries (section "Checksums") | the same |
-| Time of `run-checks.sh` on a modern computer | about 4 to 14 days | about 1 to 3 hours |
-| Free disk space and memory | 200 gigabytes; 32 gigabytes of memory, 64 recommended | 20 gigabytes; 8 gigabytes of memory, 16 recommended |
+| Time of `install-software.sh` | about 10 to 30 minutes (estimate) | 7 minutes (measured) |
+| Time of `run-checks.sh` | about 4 to 14 days (estimate) | 8 minutes (measured) |
+| Disk space used | about 200 gigabytes | about 13 gigabytes (measured: 4.6 for the software, 7.6 for the project with Mathlib) |
+| Memory | at least 32 gigabytes, 64 recommended | at least 8 gigabytes, 16 recommended |
+
+The measured times are from a computer with 14 processor cores and 15 gigabytes of memory, on 21 November 2026.
 
 The test project is built like the Riemann Hypothesis project, so that every step of sections 1 and 2 runs in the same way:
 
@@ -65,12 +69,10 @@ The test project is built like the Riemann Hypothesis project, so that every ste
 
 **Where the test project comes from.** `install-software.sh` takes the test project from the address in `TEST_PROJECT_URL`, at the top of the script. The address can be a web link to a `.tar.gz` archive, for example a file attached to a GitHub release or a file on a website, or the path of such an archive on the same computer. The default is the file `test-project.tar.gz` of this repository. The project folder may be at the top level of the archive or up to two folders deeper, so the archive that GitHub makes of a whole repository also works: `https://github.com/<account>/<repository>/archive/refs/heads/main.tar.gz`.
 
-**After changing the test project,** pack it again and put the new checksum into `TEST_PROJECT_SHA256` at the top of `install-software.sh`, or set `TEST_PROJECT_SHA256=""` to skip that comparison. These commands, run in the repository folder, produce the same archive every time from the same files:
+**After changing the test project,** pack it again and put the new checksum into `TEST_PROJECT_SHA256` at the top of `install-software.sh`, or set `TEST_PROJECT_SHA256=""` to skip that comparison. If you change the statement or the name of the main theorem, change the reference statement in `run-checks.sh` too (section "Content of the generated check files"). This command, run in the repository folder, produces the same archive every time from the same files:
 
 ```bash
-tar --sort=name --owner=0 --group=0 --numeric-owner --mode='u=rwX,go=rX' \
-    --mtime='2026-11-21 00:00:00 UTC' -cf - test-project | gzip -n -9 > test-project.tar.gz
-sha256sum test-project.tar.gz
+tar --sort=name --owner=0 --group=0 --numeric-owner --mode='u=rwX,go=rX' --mtime='2026-11-21 00:00:00 UTC' -cf - test-project | gzip -n -9 > test-project.tar.gz && sha256sum test-project.tar.gz
 ```
 
 The test project must keep Lean 4.33.1 and the library versions of the Riemann Hypothesis project, because both projects share the checking tools, and the tools are built for one Lean version.
@@ -80,89 +82,103 @@ The test project must keep Lean 4.33.1 and the library versions of the Riemann H
 | Name | Meaning | Default |
 |---|---|---|
 | `REPO_DIR` | the folder of this repository (the folder that contains the scripts) | wherever you cloned it |
-| `WORK_DIR` | working folder on a fast local disk | `$HOME/rh-check` |
-| `TOOLS_DIR` | lean4export, Lean4Lean and nanoda, shared by both projects | `$WORK_DIR/tools` |
-| `PROJECT_WORK_DIR` | working folder of one project | `$WORK_DIR/riemann-hypothesis` or `$WORK_DIR/test-project` |
+| `WORK_DIR` | the working folder: everything is written into it | the folder from which you start the scripts |
+| `TOOLS_DIR` | all installed software: elan and Lean, Rust, Mathlib's downloaded files, lean4export, Lean4Lean and nanoda; shared by both projects | `$WORK_DIR/tools` |
+| `PROJECT_WORK_DIR` | the working folder of one project | `$WORK_DIR/check-riemann-hypothesis` or `$WORK_DIR/check-test-project` |
 | `PROJECT_DIR` | the unpacked Lean project | `$PROJECT_WORK_DIR/lean` |
 | `CHECKS_DIR` | small files generated by `run-checks.sh` | `$PROJECT_WORK_DIR/checks` |
 | `RESULTS_DIR` | the log of every step, and `summary.txt` | `$PROJECT_WORK_DIR/results` |
-| `$HOME/.elan`, `$HOME/.cargo`, `$HOME/.rustup` | where elan, Lean and Rust install themselves | set by those installers |
-| `$HOME/.cache/mathlib` | prebuilt Mathlib files, downloaded once and used by both projects | set by Mathlib's cache program |
 
-Contents of `WORK_DIR` after both projects are installed and checked:
+Both scripts set these environment variables, so that the installers and Mathlib's download program write into `TOOLS_DIR` instead of the home folder:
+
+| Variable | Value | Used by |
+|---|---|---|
+| `ELAN_HOME` | `$TOOLS_DIR/elan` | elan; Lean is installed in `$TOOLS_DIR/elan/toolchains/` |
+| `RUSTUP_HOME` | `$TOOLS_DIR/rustup` | rustup; the Rust compiler is installed there |
+| `CARGO_HOME` | `$TOOLS_DIR/cargo` | Cargo, the Rust build program, and the Rust libraries it downloads |
+| `MATHLIB_CACHE_DIR` | `$TOOLS_DIR/mathlib-cache` | Mathlib's download program (`lake exe cache get`) |
+
+The working folder after both projects are installed and checked, when the scripts are started in the repository folder:
 
 ```text
-$WORK_DIR/
+<repository folder>/
+├── README.md, install-software.sh, run-checks.sh, test-project/, test-project.tar.gz
 ├── selected-project              name of the project installed last; run-checks.sh reads it
-├── elan-init.sh, rustup-init.sh  installers of elan and Rust (only if the script installed them)
-├── tools/                        lean4export/, lean4lean/, nanoda_lib/
-├── riemann-hypothesis/
+├── tools/
+│   ├── elan/                     elan and Lean 4.33.1
+│   ├── rustup/, cargo/           the Rust compiler and Cargo
+│   ├── mathlib-cache/            Mathlib's downloaded prebuilt files
+│   ├── lean4export/, lean4lean/, nanoda_lib/
+│   └── elan-init.sh, rustup-init.sh   the two installers
+├── check-riemann-hypothesis/
 │   ├── download/                 lean.tar.gz.part01 … lean.tar.gz.part14
 │   ├── lean.tar.gz               the 14 parts joined
 │   ├── files.sha256              checksum of the unpacked files (step 1.8)
 │   ├── lean/                     the Lean project; Lake adds lean/.lake/ with the libraries and compiled files
 │   ├── checks/                   CheckAxioms.lean, CheckStatements.lean, nanoda-config.json
 │   ├── results/                  summary.txt and one log file per step
-│   └── main.ndjson               the export file of step 2.9
-└── test-project/
+│   └── main.ndjson               the export file of step 2.8
+└── check-test-project/
     └── …                         the same structure, with download/test-project.tar.gz and test-project.tar.gz
 ```
 
-## Requirements and the reference computer
+To remove everything that the scripts created, delete `tools/`, `check-riemann-hypothesis/`, `check-test-project/` and `selected-project`.
+
+## Requirements
 
 - **Operating system:** Linux, with the bash shell.
-- **Disk:** a local solid-state disk for `WORK_DIR`, with at least 200 gigabytes free for the Riemann Hypothesis proof, or 20 gigabytes for the test project alone. A network drive, or a Windows drive used from the Windows Subsystem for Linux, is far too slow for hundreds of thousands of small files.
+- **Disk:** the working folder must be on a local solid-state disk, with at least 200 gigabytes free for the Riemann Hypothesis proof, or 20 gigabytes for the test project alone. A network drive, or a Windows drive used from the Windows Subsystem for Linux, is far too slow for hundreds of thousands of small files.
 - **Memory:** for the Riemann Hypothesis proof, at least 32 gigabytes, 64 gigabytes recommended: the last build steps and several checks load the whole project, about 1.5 million definitions and theorems, at once. For the test project, at least 8 gigabytes, 16 gigabytes recommended.
-- **Internet:** for the downloads of section 1, several gigabytes, mostly Mathlib and its prebuilt files.
-- **Estimated times** are rough estimates, not measurements. They assume a **modern computer**: 16 processor cores, 64 gigabytes of memory, a solid-state disk, and an internet connection of about 100 megabits per second.
+- **Internet:** for the downloads of section 1: about 4 gigabytes (Lean, Mathlib with its prebuilt files, and Rust), plus 239 megabytes for the Riemann Hypothesis proof.
+
+The times for the Riemann Hypothesis proof are estimates, not measurements. They assume a computer with 16 processor cores, 64 gigabytes of memory, a solid-state disk, and an internet connection of about 100 megabits per second. The times for the test project were measured (section "The two projects").
 
 ## 1. Software installation (script: `install-software.sh`)
 
-The script prints the same step numbers as this table. Steps 1.3 to 1.8 depend on the chosen project. Steps 1.9 to 1.15 install the same software for both projects. If the other project was installed before, steps 1.9, 1.10 and 1.12 to 1.15 take only seconds, because the software is already there, and step 1.11 is faster, because the prebuilt Mathlib files are already in `$HOME/.cache/mathlib`.
+The script prints the same step numbers as this table. Steps 1.3 to 1.8 depend on the chosen project. Steps 1.9 to 1.15 install the same software for both projects. If the other project was installed before, steps 1.9, 1.10 and 1.12 to 1.15 take only seconds, because the software is already there, and step 1.11 is faster, because Mathlib's prebuilt files are already in `$TOOLS_DIR/mathlib-cache`.
 
-| Step | Command | Folder to run in | Input | Output (files created or text printed) | Software (name and maker) | Time: Riemann Hypothesis proof | Time: test project |
+| Step | Command | Folder to run in | Input | Output (files created or text printed) | Software (name and maker) | Time: Riemann Hypothesis proof (estimate) | Time: test project (measured) |
 |---|---|---|---|---|---|---|---|
-| 1.1 Choose the project | `./install-software.sh` asks `Enter 1 or 2`; to answer in advance, set `PROJECT=riemann-hypothesis` or `PROJECT=test-project` | `REPO_DIR` | your answer | the chosen project and its folder `$PROJECT_WORK_DIR` | bash (GNU Project) | seconds | seconds |
-| 1.2 System tools | Debian or Ubuntu: `sudo apt-get install -y git curl tar gzip coreutils findutils gawk build-essential`; Fedora: `sudo dnf install -y git curl tar gzip coreutils findutils gawk gcc` | any folder | the operating system's package sources | the programs `git`, `curl`, `tar`, `gzip`, `sha256sum`, `find`, `sort`, `xargs`, `df`, `awk` and the C compiler `cc`; the script also prints the free disk space and the memory | the operating system's package manager; Git (Git project); curl (curl project); GNU tools and the GNU C compiler (GNU Project, Free Software Foundation) | 1 to 5 minutes; seconds if all tools are present | the same |
+| 1.1 Choose the project | `./install-software.sh` asks `Enter 1 or 2`; to answer in advance, set `PROJECT=riemann-hypothesis` or `PROJECT=test-project` | `WORK_DIR` | your answer | the chosen project and its folder `$PROJECT_WORK_DIR` | bash (GNU Project) | seconds | seconds |
+| 1.2 System tools | Debian or Ubuntu: `sudo apt-get install -y git curl tar gzip coreutils findutils gawk build-essential`; Fedora: `sudo dnf install -y git curl tar gzip coreutils findutils gawk gcc` | any folder | the operating system's package sources | the programs `git`, `curl`, `tar`, `gzip`, `sha256sum`, `find`, `sort`, `xargs`, `df`, `awk` and the C compiler `cc`; the script also prints the free disk space and the memory | the operating system's package manager; Git (Git project); curl (curl project); GNU tools and the GNU C compiler (GNU Project, Free Software Foundation) | seconds if all tools are present, otherwise 1 to 5 minutes | seconds |
 | 1.3 Download the project files | Riemann Hypothesis proof: `curl -fsSL -o download/lean.tar.gz.partNN https://alpo.ge/lean.tar.gz.partNN` for NN = 01 to 14; a part that is already there with the correct checksum is not downloaded again. Test project: `curl -fsSL -o download/test-project.tar.gz <TEST_PROJECT_URL>`, or `cp` if `TEST_PROJECT_URL` is a path on this computer | `$PROJECT_WORK_DIR` | the files at the source address | `$PROJECT_WORK_DIR/download/`, with the 14 parts or with `test-project.tar.gz` | curl (curl project) | 1 to 5 minutes | seconds |
 | 1.4 Check each downloaded file | `sha256sum download/lean.tar.gz.partNN` | `$PROJECT_WORK_DIR` | the downloaded files | one checksum per part; each must equal the value in section "Checksums". The test project is one file, the archive itself, which step 1.6 checks | sha256sum (GNU coreutils, GNU Project) | seconds | seconds |
 | 1.5 Join the downloaded files into one archive | `cat download/lean.tar.gz.part{01..14} > lean.tar.gz`; for the test project, the one downloaded file is copied to `test-project.tar.gz` | `$PROJECT_WORK_DIR` | the downloaded files | `$PROJECT_WORK_DIR/lean.tar.gz` or `$PROJECT_WORK_DIR/test-project.tar.gz` | cat (GNU coreutils) | seconds | seconds |
 | 1.6 Check the archive | `sha256sum lean.tar.gz` or `sha256sum test-project.tar.gz` | `$PROJECT_WORK_DIR` | the archive | its checksum; it must equal the value in section "Checksums", for the test project the value of `TEST_PROJECT_SHA256` | sha256sum (GNU coreutils) | seconds | seconds |
 | 1.7 Unpack the archive | `tar -xzf lean.tar.gz -C unpack --no-same-owner`; the folder that contains `lean-toolchain` is then moved to `lean` | `$PROJECT_WORK_DIR` | the archive | `$PROJECT_DIR`: 175,190 files (about 1 gigabyte), or 6 files for the test project | GNU tar (GNU Project) | 1 to 2 minutes | seconds |
 | 1.8 Check the unpacked files | `find lean -path lean/.lake -prune -o -type f ! -path lean/lake-manifest.json -print0 \| LC_ALL=C sort -z \| xargs -0 sha256sum \| sha256sum`; then confirm that `lake-manifest.json` pins the 9 library commits listed in section "Checksums" | `$PROJECT_WORK_DIR` | `$PROJECT_DIR` | one checksum over all files except `lake-manifest.json`; it must equal the value in section "Checksums" and is written to `files.sha256` for step 2.1. The project name is written to `$WORK_DIR/selected-project` | GNU findutils, GNU coreutils, GNU grep (GNU Project) | about 1 minute | seconds |
-| 1.9 Install elan, the Lean version manager | `curl -sSf -o $WORK_DIR/elan-init.sh https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh`, then `sh $WORK_DIR/elan-init.sh -y --default-toolchain none` | any folder | the installer, downloaded from GitHub | `$HOME/.elan/` with the programs `elan`, `lean` and `lake` | elan (Lean developers, Lean Focused Research Organization); curl | 1 minute | 1 minute |
-| 1.10 Install Lean 4.33.1 | `lean --version` | `$PROJECT_DIR` | the file `lean-toolchain`, which contains `leanprover/lean4:v4.33.1` | Lean 4.33.1 in `$HOME/.elan/toolchains/`, including the programs `lean`, `lake` and `leanchecker`; prints the Lean version | elan; Lean 4 (Lean Focused Research Organization) | 2 to 5 minutes | 2 to 5 minutes |
-| 1.11 Download Mathlib and the other libraries | `lake exe cache get` | `$PROJECT_DIR` | `lakefile.toml` and `lake-manifest.json` | `$PROJECT_DIR/.lake/packages/`: Mathlib and 8 helper libraries at the pinned commits, and the prebuilt Mathlib files, which are also kept in `$HOME/.cache/mathlib` | Lake (Lean Focused Research Organization); Git; the `cache` program of Mathlib (Mathlib community) | 10 to 30 minutes | 10 to 30 minutes |
-| 1.12 Install lean4export | `git clone https://github.com/leanprover/lean4export $TOOLS_DIR/lean4export`; in that folder: `git checkout 15f6055e299ad5b89345e533cc2192f4cc00f659` (tag `v4.33.0`), write `leanprover/lean4:v4.33.1` into `lean-toolchain`, and `lake build` | `$TOOLS_DIR/lean4export` | the source code from GitHub | `$TOOLS_DIR/lean4export/.lake/build/bin/lean4export` | lean4export (Lean developers, Lean Focused Research Organization); Git; Lake | 2 to 10 minutes | 2 to 10 minutes |
-| 1.13 Install Lean4Lean | `git clone https://github.com/digama0/lean4lean $TOOLS_DIR/lean4lean`; in that folder: `git checkout 67f63b0c818920dfaed2ad07ccff187a6a8fe1e3`, write `leanprover/lean4:v4.33.1` into `lean-toolchain`, and `lake build lean4lean` (only the command-line program, not the proofs about Lean's type theory that the repository also contains) | `$TOOLS_DIR/lean4lean` | the source code from GitHub | `$TOOLS_DIR/lean4lean/.lake/build/bin/lean4lean` | Lean4Lean (Mario Carneiro); Git; Lake | 5 to 20 minutes | 5 to 20 minutes |
-| 1.14 Install the Rust compiler | `curl -sSf -o $WORK_DIR/rustup-init.sh https://sh.rustup.rs`, then `sh $WORK_DIR/rustup-init.sh -y --profile minimal` | any folder | the installer, downloaded from rustup.rs | `$HOME/.cargo/` and `$HOME/.rustup/` with `rustc` and `cargo` | rustup, the Rust compiler and Cargo (Rust project) | 2 to 5 minutes | 2 to 5 minutes |
-| 1.15 Install nanoda | `git clone https://github.com/ammkrn/nanoda_lib $TOOLS_DIR/nanoda_lib`; in that folder: `git checkout 0da9f98feadd3a0a2ef4b3dbcf52a298a6fef929` and `cargo build --release --locked` | `$TOOLS_DIR/nanoda_lib` | the source code from GitHub, and the Rust libraries that it uses, from crates.io | `$TOOLS_DIR/nanoda_lib/target/release/nanoda_bin` | nanoda (Chris Bailey, independent developer); Cargo (Rust project) | 1 to 5 minutes | 1 to 5 minutes |
-| **Total** | | | | | | **about 30 minutes to 2 hours** | **about 30 minutes to 1.5 hours** |
+| 1.9 Install elan, the Lean version manager | `curl -sSf -o $TOOLS_DIR/elan-init.sh https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh`, then `sh $TOOLS_DIR/elan-init.sh -y --default-toolchain none --no-modify-path` (`--no-modify-path`: no changes to the shell start files in the home folder) | `WORK_DIR` | the installer, downloaded from GitHub | `$TOOLS_DIR/elan/` with the programs `elan`, `lean` and `lake` | elan (Lean developers, Lean Focused Research Organization); curl | seconds | seconds |
+| 1.10 Install Lean 4.33.1 | `lean --version` | `$PROJECT_DIR` | the file `lean-toolchain`, which contains `leanprover/lean4:v4.33.1` | Lean 4.33.1 in `$TOOLS_DIR/elan/toolchains/`, including the programs `lean`, `lake` and `leanchecker`; prints the Lean version | elan; Lean 4 (Lean Focused Research Organization) | 1 to 2 minutes | 4.5 minutes for steps 1.10 and 1.11 together |
+| 1.11 Download Mathlib and the other libraries | `lake exe cache get` | `$PROJECT_DIR` | `lakefile.toml` and `lake-manifest.json` | `$PROJECT_DIR/.lake/packages/`: Mathlib and 8 helper libraries at the pinned commits, with Mathlib's prebuilt files; the downloaded files are also kept in `$TOOLS_DIR/mathlib-cache` | Lake (Lean Focused Research Organization); Git; the `cache` program of Mathlib (Mathlib community) | 3 to 10 minutes | (see step 1.10) |
+| 1.12 Install lean4export | `git clone https://github.com/leanprover/lean4export $TOOLS_DIR/lean4export`; in that folder: `git checkout 15f6055e299ad5b89345e533cc2192f4cc00f659` (tag `v4.33.0`), write `leanprover/lean4:v4.33.1` into `lean-toolchain`, and `lake build` | `$TOOLS_DIR/lean4export` | the source code from GitHub | `$TOOLS_DIR/lean4export/.lake/build/bin/lean4export` | lean4export (Lean developers, Lean Focused Research Organization); Git; Lake | 1 to 2 minutes | 1.5 minutes |
+| 1.13 Install Lean4Lean | `git clone https://github.com/digama0/lean4lean $TOOLS_DIR/lean4lean`; in that folder: `git checkout 67f63b0c818920dfaed2ad07ccff187a6a8fe1e3`, write `leanprover/lean4:v4.33.1` into `lean-toolchain`, and `lake build lean4lean` (only the command-line program, not the proofs about Lean's type theory that the repository also contains) | `$TOOLS_DIR/lean4lean` | the source code from GitHub | `$TOOLS_DIR/lean4lean/.lake/build/bin/lean4lean` | Lean4Lean (Mario Carneiro); Git; Lake | 1 to 2 minutes | under 1 minute |
+| 1.14 Install the Rust compiler | `curl -sSf -o $TOOLS_DIR/rustup-init.sh https://sh.rustup.rs`, then `sh $TOOLS_DIR/rustup-init.sh -y --profile minimal --no-modify-path` | `WORK_DIR` | the installer, downloaded from rustup.rs | `$TOOLS_DIR/rustup/` and `$TOOLS_DIR/cargo/` with `rustc` and `cargo` | rustup, the Rust compiler and Cargo (Rust project) | under 1 minute | under 1 minute |
+| 1.15 Install nanoda | `git clone https://github.com/ammkrn/nanoda_lib $TOOLS_DIR/nanoda_lib`; in that folder: `git checkout 0da9f98feadd3a0a2ef4b3dbcf52a298a6fef929` and `cargo build --release --locked` | `$TOOLS_DIR/nanoda_lib` | the source code from GitHub, and the Rust libraries that it uses, from crates.io | `$TOOLS_DIR/nanoda_lib/target/release/nanoda_bin` | nanoda (Chris Bailey, independent developer); Cargo (Rust project) | under 1 minute | under 1 minute |
+| **Total** | | | | | | **about 10 to 30 minutes** | **7 minutes** |
 
 ## 2. Verification (script: `run-checks.sh`)
 
-The script prints the same step numbers as this table, and `$RESULTS_DIR/summary.txt` lists the result of every step with its duration. `<main theorems>` stands for the names of the main theorems: the five names in `CheckAxioms.lean` below for the Riemann Hypothesis proof, and `sin_sq_add_cos_sq_eq_one` for the test project.
+All steps are automatic. The script prints the same step numbers as this table, and `$RESULTS_DIR/summary.txt` lists the result of every step with its duration. `<main theorems>` stands for the names of the main theorems: the five names in `CheckAxioms.lean` below for the Riemann Hypothesis proof, and `sin_sq_add_cos_sq_eq_one` for the test project.
 
-| Step | Command | Folder to run in | Input | Output (files created or text printed) | Software (name and maker) | Time: Riemann Hypothesis proof | Time: test project |
+| Step | Command | Folder to run in | Input | Output (files created or text printed) | Software (name and maker) | Time: Riemann Hypothesis proof (estimate) | Time: test project (measured) |
 |---|---|---|---|---|---|---|---|
 | 2.1 Check the project files again | the commands of step 1.8 | `$PROJECT_WORK_DIR` | `$PROJECT_DIR` | PASSED if the checksum equals the value in section "Checksums" (for the test project: the value in `files.sha256`) and all 9 library commits are pinned | GNU findutils, coreutils and grep | 1 to 2 minutes | seconds |
-| 2.2 Build: elaborate every file and check every proof with Lean's kernel | `lake build > $RESULTS_DIR/build.log 2>&1` | `$PROJECT_DIR` | `src/` with the Lean files, `lakefile.toml`, the libraries | `$PROJECT_DIR/.lake/build/`: a compiled `.olean` file and bookkeeping files for every Lean file (tens of gigabytes for the Riemann Hypothesis proof); `$RESULTS_DIR/build.log`, which should end with a success message such as `Build completed successfully` | Lake and Lean 4 (Lean Focused Research Organization) | 1.5 to 5 days; 1 to 3 hours more if Mathlib had no prebuilt files | 1 to 5 minutes |
+| 2.2 Build: elaborate every file and check every proof with Lean's kernel | `lake build > $RESULTS_DIR/build.log 2>&1` | `$PROJECT_DIR` | `src/` with the Lean files, `lakefile.toml`, the libraries | `$PROJECT_DIR/.lake/build/`: a compiled `.olean` file and bookkeeping files for every Lean file (tens of gigabytes for the Riemann Hypothesis proof); `$RESULTS_DIR/build.log`, which should end with `Build completed successfully` | Lake and Lean 4 (Lean Focused Research Organization) | 1.5 to 5 days; 1 to 3 hours more if Mathlib had no prebuilt files | under 1 minute |
 | 2.3 Check the library versions that the build used | `git -C .lake/packages/<library> rev-parse HEAD` for each of the 9 libraries | `$PROJECT_DIR` | `$PROJECT_DIR/.lake/packages/` | each printed commit must equal the pinned commit in section "Checksums" | Git (Git project) | seconds | seconds |
 | 2.4 Look for errors and `sorry` | `grep -n -E "(^\|[^[:alnum:]_])error:\|declaration uses .sorry." $RESULTS_DIR/build.log > $RESULTS_DIR/errors-and-sorry.txt` | any folder | `$RESULTS_DIR/build.log` | `$RESULTS_DIR/errors-and-sorry.txt`; for a complete proof it is empty | GNU grep (GNU Project) | seconds | seconds |
-| 2.5 List the axioms of the main theorems | `lake env lean $CHECKS_DIR/CheckAxioms.lean > $RESULTS_DIR/axioms.txt` | `$PROJECT_DIR` | `CheckAxioms.lean` (written by the script; content below) and the compiled files | `$RESULTS_DIR/axioms.txt`, one line per theorem, such as `'riemannHypothesis' depends on axioms: [propext, Classical.choice, Quot.sound]` | Lean 4 | 5 to 30 minutes | under 1 minute |
-| 2.6 Print the exact statements | `lake env lean $CHECKS_DIR/CheckStatements.lean > $RESULTS_DIR/statements.txt` | `$PROJECT_DIR` | `CheckStatements.lean` (written by the script; content below) and the compiled files | `$RESULTS_DIR/statements.txt`: the type of each main theorem and the full definition of each statement | Lean 4 | 5 to 30 minutes | under 1 minute |
-| 2.7 Read the statements (done by a person) | read `$RESULTS_DIR/statements.txt`; find Mathlib's definition of the Riemann Hypothesis with `grep -rn "def RiemannHypothesis" .lake/packages/mathlib/Mathlib` | `$PROJECT_DIR` | `statements.txt`, Mathlib's source files, and the statements as printed by nanoda in `nanoda.log` (step 2.10) | a person's confirmation that the statements are the Riemann Hypothesis and the generalized Riemann Hypothesis for Dirichlet L-functions; for the test project, that the statement is sin(x)² + cos(x)² = 1 for every real number x. The summary shows this step as `TO DO` | a person who knows the mathematics; GNU grep | 30 to 60 minutes of reading | 5 minutes |
-| 2.8 Check every stored declaration again with Lean's kernel, in a new process | `lake env leanchecker --fresh Main > $RESULTS_DIR/leanchecker.log 2>&1` | `$PROJECT_DIR` | the compiled files of `Main` and of everything it imports, including Lean's own library and Mathlib | `$RESULTS_DIR/leanchecker.log`; success means that it finishes without an error | leanchecker, part of Lean 4 since version 4.28.0 (Lean Focused Research Organization; formerly the separate program lean4checker, written by Kim Morrison); it uses the same kernel code as Lean | 0.5 to 2 days | 10 to 40 minutes |
-| 2.9 Export the main theorems and everything they depend on | `lake env $TOOLS_DIR/lean4export/.lake/build/bin/lean4export Main -- <main theorems> > $PROJECT_WORK_DIR/main.ndjson` | `$PROJECT_DIR` | the compiled files | `$PROJECT_WORK_DIR/main.ndjson`: every definition, theorem and axiom that the main theorems depend on, as text in export format 3.1.0 (one JSON object per line) | lean4export (Lean developers) | 2 to 8 hours | 1 to 5 minutes |
-| 2.10 Check with nanoda, an external type checker | `$TOOLS_DIR/nanoda_lib/target/release/nanoda_bin $CHECKS_DIR/nanoda-config.json > $RESULTS_DIR/nanoda.log 2>&1` | `$PROJECT_WORK_DIR` | `main.ndjson` and the settings file `nanoda-config.json` (written by the script; content below) | `$RESULTS_DIR/nanoda.log`: the main theorems and their statements as nanoda reads them, and at the end `Checked N declarations with no errors` | nanoda (Chris Bailey; written separately, in the Rust language) | 0.5 to 2 days | 1 to 10 minutes |
-| 2.11 Check with Lean4Lean, a second implementation of Lean's kernel | `lake env $TOOLS_DIR/lean4lean/.lake/build/bin/lean4lean --fresh Main > $RESULTS_DIR/lean4lean.log 2>&1` | `$PROJECT_DIR` | the compiled files | `$RESULTS_DIR/lean4lean.log`; success means that it finishes without an error | Lean4Lean (Mario Carneiro; Lean's kernel written again in the Lean language) | 1 to 5 days | 30 minutes to 2 hours |
-| **Total** | | | | | | **about 4 to 14 days of computing** | **about 1 to 3 hours** |
+| 2.5 List the axioms of the main theorems | `lake env lean $CHECKS_DIR/CheckAxioms.lean > $RESULTS_DIR/axioms.txt` | `$PROJECT_DIR` | `CheckAxioms.lean` (written by the script; content below) and the compiled files | `$RESULTS_DIR/axioms.txt`, one line per theorem, such as `'riemannHypothesis' depends on axioms: [propext, Classical.choice, Quot.sound]`; PASSED if no other axiom appears | Lean 4 | 5 to 30 minutes | under 1 minute |
+| 2.6 Compare the statements with the reference statements | `lake env lean $CHECKS_DIR/CheckStatements.lean > $RESULTS_DIR/statements.log 2>&1` | `$PROJECT_DIR` | `CheckStatements.lean` (written by the script; it contains the reference statements, see below) and the compiled files | `$RESULTS_DIR/statements.log`; PASSED if Lean accepts the file: then every statement of the project is exactly its reference statement, and every main theorem proves exactly its statement | Lean 4 | 5 to 30 minutes | under 1 minute |
+| 2.7 Check every stored declaration again with Lean's kernel, in a new process | `lake env leanchecker --fresh Main > $RESULTS_DIR/leanchecker.log 2>&1` | `$PROJECT_DIR` | the compiled files of `Main` and of everything it imports, including Lean's own library and Mathlib | `$RESULTS_DIR/leanchecker.log`; PASSED if it finishes without an error | leanchecker, part of Lean 4 since version 4.28.0 (Lean Focused Research Organization; formerly the separate program lean4checker, written by Kim Morrison); it uses the same kernel code as Lean | 0.5 to 2 days | 3 minutes |
+| 2.8 Export the main theorems and everything they depend on | `lake env $TOOLS_DIR/lean4export/.lake/build/bin/lean4export Main -- <main theorems> > $PROJECT_WORK_DIR/main.ndjson` | `$PROJECT_DIR` | the compiled files | `$PROJECT_WORK_DIR/main.ndjson`: every definition, theorem and axiom that the main theorems depend on, as text in export format 3.1.0 (one JSON object per line); 51 megabytes for the test project | lean4export (Lean developers) | 2 to 8 hours | under 1 minute |
+| 2.9 Check with nanoda, an external type checker | `$TOOLS_DIR/nanoda_lib/target/release/nanoda_bin $CHECKS_DIR/nanoda-config.json > $RESULTS_DIR/nanoda.log 2>&1` | `$PROJECT_WORK_DIR` | `main.ndjson` and the settings file `nanoda-config.json` (written by the script; content below) | `$RESULTS_DIR/nanoda.log`, ending with `Checked N declarations with no errors` (13,251 declarations for the test project) | nanoda (Chris Bailey; written separately, in the Rust language) | 0.5 to 2 days | under 1 minute |
+| 2.10 Check with Lean4Lean, a second implementation of Lean's kernel | `lake env $TOOLS_DIR/lean4lean/.lake/build/bin/lean4lean --fresh Main > $RESULTS_DIR/lean4lean.log 2>&1` | `$PROJECT_DIR` | the compiled files | `$RESULTS_DIR/lean4lean.log`, with the line `checked N declarations` (284,875 declarations for the test project); PASSED if it finishes without an error | Lean4Lean (Mario Carneiro; Lean's kernel written again in the Lean language) | 1 to 5 days | 3 minutes |
+| **Total** | | | | | | **about 4 to 14 days of computing** | **8 minutes** |
 
 ## Content of the generated check files
 
-`run-checks.sh` writes these files into `$CHECKS_DIR`. For the Riemann Hypothesis proof:
+`run-checks.sh` writes these files into `$CHECKS_DIR`.
 
-`CheckAxioms.lean`:
+`CheckAxioms.lean`, for the Riemann Hypothesis proof (for the test project it contains `#print axioms sin_sq_add_cos_sq_eq_one`):
 
 ```lean
 import Main
@@ -174,25 +190,68 @@ import Main
 #print axioms LFunction_eq_zero_re_of_isPrimitive
 ```
 
-`CheckStatements.lean`:
+`CheckStatements.lean` contains the **reference statements**. They are written in `run-checks.sh`, independently of the project's files. Lean must accept every `example` in the file. An `example : A = (B) := rfl` is accepted only if the project's statement `A` is exactly the reference statement `B`. An `example : A := t` is accepted only if the main theorem `t` proves exactly `A`. If anything differs, Lean reports an error, and step 2.6 is FAILED. The two options at the top are the same as in the Riemann Hypothesis project's `lakefile.toml`, so that Lean reads the statements in the same way. For the Riemann Hypothesis proof:
 
 ```lean
 import Main
 
-#check @riemannHypothesis
-#check @riemannZeta_eq_zero_re
-#check @LFunction_ne_zero_of_half_lt_re
-#check @LFunction_eq_zero_re
-#check @LFunction_eq_zero_re_of_isPrimitive
+set_option autoImplicit false
+set_option maxSynthPendingDepth 3
 
-#print RiemannHypothesis
-#print RiemannZetaZerosOnLine
-#print DirichletLNonvanishingRightOfHalf
-#print DirichletLZerosOnLine
-#print PrimitiveDirichletLZerosOnLine
+-- The Riemann Hypothesis, as defined in Mathlib (Mathlib/NumberTheory/LSeries/RiemannZeta.lean):
+-- every zero s of the Riemann zeta function, except the negative even integers and s = 1, has
+-- real part 1/2.
+example : RiemannHypothesis =
+    (∀ (s : ℂ) (_ : riemannZeta s = 0) (_ : ¬∃ n : ℕ, s = -2 * (n + 1)) (_ : s ≠ 1), s.re = 1 / 2) :=
+  rfl
+
+-- The same statement, as written in the project.
+example : RiemannZetaZerosOnLine =
+    (∀ s : ℂ, riemannZeta s = 0 → (¬∃ n : ℕ, s = -2 * ((n : ℂ) + 1)) → s ≠ 1 → s.re = 1 / 2) :=
+  rfl
+
+-- Dirichlet L-functions have no zeros with real part greater than 1/2 (the trivial character
+-- at s = 1, where its L-function has a pole, is excluded).
+example : DirichletLNonvanishingRightOfHalf =
+    (∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N) (s : ℂ),
+      1 / 2 < s.re → (χ ≠ 1 ∨ s ≠ 1) → DirichletCharacter.LFunction χ s ≠ 0) :=
+  rfl
+
+-- Every zero of a Dirichlet L-function with real part between 0 and 1 has real part 1/2.
+example : DirichletLZerosOnLine =
+    (∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N) (s : ℂ),
+      0 < s.re → s.re < 1 → DirichletCharacter.LFunction χ s = 0 → s.re = 1 / 2) :=
+  rfl
+
+-- The same, for primitive Dirichlet characters.
+example : PrimitiveDirichletLZerosOnLine =
+    (∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N), χ.IsPrimitive →
+      ∀ s : ℂ, 0 < s.re → s.re < 1 → DirichletCharacter.LFunction χ s = 0 → s.re = 1 / 2) :=
+  rfl
+
+-- Each main theorem proves exactly its statement.
+example : RiemannHypothesis := riemannHypothesis
+example : RiemannZetaZerosOnLine := riemannZeta_eq_zero_re
+example : DirichletLNonvanishingRightOfHalf := LFunction_ne_zero_of_half_lt_re
+example : DirichletLZerosOnLine := LFunction_eq_zero_re
+example : PrimitiveDirichletLZerosOnLine := LFunction_eq_zero_re_of_isPrimitive
 ```
 
-For the test project, the same files contain `sin_sq_add_cos_sq_eq_one` instead of the five theorems and `SinSqAddCosSq` instead of the five statements.
+For the test project:
+
+```lean
+import Main
+
+set_option autoImplicit false
+
+-- For every real number x: sin(x)^2 + cos(x)^2 = 1.
+example : SinSqAddCosSq = (∀ x : ℝ, Real.sin x ^ 2 + Real.cos x ^ 2 = 1) := rfl
+
+-- The main theorem proves exactly this statement.
+example : SinSqAddCosSq := sin_sq_add_cos_sq_eq_one
+```
+
+Tested with the test project: a wrong reference statement (`= 2` instead of `= 1`), and a main theorem replaced by a different theorem, are both rejected by Lean with the error `Type mismatch`.
 
 `nanoda-config.json`, the settings file of nanoda, shown here for the test project:
 
@@ -213,24 +272,27 @@ For the test project, the same files contain `sin_sq_add_cos_sq_eq_one` instead 
 
 What the settings mean, as described in the nanoda README:
 
-- `permitted_axioms` and `unpermitted_axiom_hard_error`: any other axiom in the export file stops nanoda with an error. Because step 2.9 exports only what the main theorems depend on, this repeats the axiom check of step 2.5 with a separately written program.
+- `permitted_axioms` and `unpermitted_axiom_hard_error`: any other axiom in the export file stops nanoda with an error. Because step 2.8 exports only what the main theorems depend on, this repeats the axiom check of step 2.5 with a separately written program.
 - `nat_extension` and `string_extension`: the built-in fast arithmetic on natural numbers and strings that Lean's kernel also has.
-- `pp_declars` and `pp_to_stdout`: nanoda prints these declarations into `nanoda.log`, so that a person can compare nanoda's reading of the statements with Lean's (step 2.7). A name that is missing from the export file is an error.
+- `pp_declars` and `pp_to_stdout`: the main theorems and their statements must be in the export file; a missing name is an error. nanoda also prints them into `nanoda.log`.
 - `num_threads` and `stack_size_bytes`: one checking worker per processor core, each with 1 gigabyte of stack for deeply nested proofs.
 
 ## What counts as success
 
-1. Steps 2.1 to 2.5 are PASSED. Step 2.5 accepts only the axioms `propext`, `Classical.choice` and `Quot.sound`. `sorryAx` would mean that `sorry` was used, `Lean.ofReduceBool` would mean that `native_decide` was used, and any other name is an extra axiom.
-2. Step 2.6 is PASSED, and a person who knows the mathematics has read `statements.txt` and confirms the statements (step 2.7, shown as `TO DO` in the summary).
-3. Steps 2.8 to 2.11 are PASSED: the stored proofs were accepted again by Lean's kernel (2.8), by nanoda (2.10) and by Lean4Lean (2.11).
+All 10 steps are PASSED. `run-checks.sh` then prints `All 10 steps PASSED` and exits with code 0. A step that is FAILED or SKIPPED, for example because a tool is not installed, counts as not passed, and the exit code is 1. Every step writes its own log into `$RESULTS_DIR`.
 
-`run-checks.sh` exits with code 0 only if no step FAILED. Every step writes its own log into `$RESULTS_DIR`.
+What the steps establish together:
+
+- **The files are the author's** (2.1, 2.3): the checksums and the library versions match the published values.
+- **Every proof is complete** (2.2, 2.4, 2.5): Lean builds the project without errors, nothing uses `sorry`, and the main theorems use only the axioms `propext`, `Classical.choice` and `Quot.sound`. `sorryAx` in step 2.5 would mean that `sorry` was used, `Lean.ofReduceBool` would mean that `native_decide` was used, and any other name is an extra axiom.
+- **The theorems state the right claims** (2.6): each statement is exactly its reference statement, and each main theorem proves exactly its statement. This check is automatic. The reference statements themselves were written once, by hand, and are printed above, so anyone can read them without running anything.
+- **Other programs accept the same proofs** (2.7, 2.9, 2.10).
 
 How independent the three re-checks are:
 
-- **leanchecker** (2.8) uses Lean's own kernel code. It protects against changes to the stored results made by the project's own code during the build, not against mistakes in the kernel.
-- **Lean4Lean** (2.11) is separate code, written in the Lean language. Its README says that it follows Lean's C++ kernel closely and may therefore share mistakes with it.
-- **nanoda** (2.10) is an external type checker, written separately in the Rust language. It is the most independent of the three.
+- **leanchecker** (2.7) uses Lean's own kernel code. It protects against changes to the stored results made by the project's own code during the build, not against mistakes in the kernel.
+- **Lean4Lean** (2.10) is separate code, written in the Lean language. Its README says that it follows Lean's C++ kernel closely and may therefore share mistakes with it.
+- **nanoda** (2.9) is an external type checker, written separately in the Rust language. It is the most independent of the three.
 
 ## Checksums
 
@@ -261,8 +323,8 @@ Test project, as packed in this repository:
 
 | What | SHA-256 checksum |
 |---|---|
-| `test-project.tar.gz` | `7871e7afe3575eb2a570cfc23c4480ee97b2cc63bdfa7a7300a10049c2c1529b` |
-| all unpacked files except `lake-manifest.json` (command of step 1.8) | `92625addca3c81ee89a44d52e2f9696870a441b5721caf21a80f7931d5b00a83` |
+| `test-project.tar.gz` (1,893 bytes) | `e2fb653639cd758859cb10f90356ad3c7b2f8a81396fe4bae24060296f4dd224` |
+| all unpacked files except `lake-manifest.json` (command of step 1.8) | `07e2c13502e1850b6053e17f8343376d1bbbdc2a7694cfa76a7e46e9a4ded347` |
 
 Library commits pinned in `lake-manifest.json` (Git commit identifiers), the same for both projects:
 
@@ -286,7 +348,7 @@ Library commits pinned in `lake-manifest.json` (Git commit identifiers), the sam
 | lean4export | commit `15f6055e299ad5b89345e533cc2192f4cc00f659` (tag `v4.33.0`), built with Lean 4.33.1 | the release of lean4export for Lean 4.33; there is no tag `v4.33.1`. It writes export format 3.1.0 |
 | Lean4Lean | commit `67f63b0c818920dfaed2ad07ccff187a6a8fe1e3`, built with Lean 4.33.1 | the newest version on 21 November 2026, made for Lean 4.33.0-rc2; Lean4Lean has no release tags for Lean versions |
 | nanoda | commit `0da9f98feadd3a0a2ef4b3dbcf52a298a6fef929` (nanoda_lib version 0.4.32) | the newest version on 21 November 2026; it reads export format versions from 3.1.0 up to, but not including, 3.2.0 |
-| Rust | the newest stable version, installed by rustup | needed only to build nanoda |
+| Rust | the newest stable version, installed by rustup (1.100.0 on 21 November 2026) | needed only to build nanoda |
 
 Lean's compiled files (`.olean`) can be read only by the exact Lean version that wrote them. Therefore `install-software.sh` builds lean4export and Lean4Lean with Lean 4.33.1, by writing `leanprover/lean4:v4.33.1` into their `lean-toolchain` files. The tool versions are set at the top of `install-software.sh`, in `LEAN4EXPORT_COMMIT`, `LEAN4LEAN_COMMIT` and `NANODA_COMMIT`.
 
@@ -295,7 +357,7 @@ Lean's compiled files (`.olean`) can be read only by the exact Lean version that
 - **Never run `lake update`** in `$PROJECT_DIR`. It would replace the pinned library versions with newer ones, and the checks would no longer test the author's setup.
 - **Checking the other project.** `run-checks.sh` checks the project that `install-software.sh` installed last. To check the other installed project, run `PROJECT=test-project ./run-checks.sh` or `PROJECT=riemann-hypothesis ./run-checks.sh`.
 - **Running again.** Both scripts can be run again. `install-software.sh` does not download a part again if it is already there with the correct checksum, does not unpack again if `$PROJECT_DIR` exists, and does not install software again that is already there. `lake build` only rebuilds what is missing, so a second run of `run-checks.sh` after a completed build takes much less time.
-- **Starting a project again from the beginning:** delete its folder `$PROJECT_WORK_DIR`, for example `rm -rf $HOME/rh-check/test-project`, and run `install-software.sh` again.
+- **Starting a project again from the beginning:** delete its folder, `check-test-project/` or `check-riemann-hypothesis/`, and run `install-software.sh` again.
 - **Other commands for nanoda or Lean4Lean.** If a newer version of one of these tools needs a different command, give the complete command in the environment variable `NANODA_CMD` or `LEAN4LEAN_CMD`, for example `NANODA_CMD="/path/to/nanoda_bin /path/to/settings.json" ./run-checks.sh`.
 
 ## Software and makers

@@ -9,17 +9,19 @@
 #   1  riemann-hypothesis  the proof of the Riemann Hypothesis claim, published at https://alpo.ge
 #                          as lean.tar.gz.part01 ... lean.tar.gz.part14
 #   2  test-project        a small Lean project that proves sin(x)^2 + cos(x)^2 = 1; with it, all
-#                          steps can be tried in a few hours instead of days
+#                          steps can be tried in a few minutes instead of days
 # It then downloads the project, joins and unpacks it, confirms that the files are identical to
 # the published files, and installs all software that run-checks.sh needs.
 #
-# Usage:
+# Usage, in the folder where everything should be stored (normally the folder of this script):
 #   ./install-software.sh                               asks which project to install
 #   PROJECT=riemann-hypothesis ./install-software.sh    installs that project without asking
 #   PROJECT=test-project ./install-software.sh          installs that project without asking
 #
-# Everything is installed inside $HOME and $WORK_DIR. Administrator rights are needed only if
-# system tools are missing (step 1.2); the script then prints the command that installs them.
+# Everything is written into the folder from which you start the script (WORK_DIR), including
+# elan, Lean, Rust and all downloaded files; nothing is written into your home folder. The only
+# exception: system tools that are missing (step 1.2) are installed into the operating system
+# with apt-get, which needs administrator rights.
 
 set -euo pipefail
 
@@ -37,12 +39,22 @@ TEST_PROJECT_URL="$REPO_DIR/test-project.tar.gz"
 # SHA-256 checksum of that archive. If you change the test project, put the checksum of the new
 # archive here (README.md, section "The two projects"), or leave the quotes empty ("") to skip
 # this comparison.
-TEST_PROJECT_SHA256="7871e7afe3575eb2a570cfc23c4480ee97b2cc63bdfa7a7300a10049c2c1529b"
+TEST_PROJECT_SHA256="e2fb653639cd758859cb10f90356ad3c7b2f8a81396fe4bae24060296f4dd224"
 
-# Working folder on a fast local disk, and the folder for the checking tools. Both can also be
-# set as environment variables, for example: WORK_DIR=/data/rh-check ./install-software.sh
-WORK_DIR="${WORK_DIR:-$HOME/rh-check}"
+# Working folder: by default the folder from which you start the script. Start run-checks.sh from
+# the same folder. Another folder can be set as an environment variable, for example:
+# WORK_DIR=/data/rh-check ./install-software.sh
+WORK_DIR="${WORK_DIR:-$PWD}"
+mkdir -p "$WORK_DIR" && WORK_DIR="$(cd "$WORK_DIR" && pwd)"
 TOOLS_DIR="${TOOLS_DIR:-$WORK_DIR/tools}"
+
+# elan, Lean, Rust and Mathlib's downloaded files are installed inside TOOLS_DIR, not in the home
+# folder. run-checks.sh uses the same settings.
+export ELAN_HOME="$TOOLS_DIR/elan"
+export RUSTUP_HOME="$TOOLS_DIR/rustup"
+export CARGO_HOME="$TOOLS_DIR/cargo"
+export MATHLIB_CACHE_DIR="$TOOLS_DIR/mathlib-cache"
+export PATH="$ELAN_HOME/bin:$CARGO_HOME/bin:$PATH"
 
 # =================================================================================================
 # Reference values of the published files (README.md, section "Checksums")
@@ -129,7 +141,7 @@ if [ -z "$PROJECT" ]; then
   echo "     (14 files, 239 megabytes; run-checks.sh then needs about 4 to 14 days)"
   echo "  2  test-project: a small project that proves sin(x)^2 + cos(x)^2 = 1, from"
   echo "     $TEST_PROJECT_URL"
-  echo "     (run-checks.sh then needs about 1 to 3 hours)"
+  echo "     (run-checks.sh then needs about 10 minutes)"
   read -r -p "Enter 1 or 2: " answer \
     || die "no answer; to run without the question, set PROJECT=riemann-hypothesis or PROJECT=test-project"
   case "$answer" in
@@ -164,7 +176,7 @@ case "$PROJECT" in
   *)
     die "unknown project '$PROJECT'; use riemann-hypothesis or test-project" ;;
 esac
-PROJECT_WORK_DIR="$WORK_DIR/$PROJECT"
+PROJECT_WORK_DIR="$WORK_DIR/check-$PROJECT"
 PROJECT_DIR="$PROJECT_WORK_DIR/lean"
 echo "Project: $PROJECT"
 echo "Folder:  $PROJECT_WORK_DIR"
@@ -293,10 +305,10 @@ printf '%s\n' "$PROJECT" > "$WORK_DIR/selected-project"
 
 # -------------------------------------------------------------------------------------------------
 say "1.9 Install elan, the Lean version manager"
-export PATH="$HOME/.elan/bin:$PATH"
-if ! command -v elan >/dev/null 2>&1; then
-  curl -sSf -o "$WORK_DIR/elan-init.sh" https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
-  sh "$WORK_DIR/elan-init.sh" -y --default-toolchain none
+# --no-modify-path: the installer does not add lines to the shell start files in the home folder.
+if [ ! -x "$ELAN_HOME/bin/elan" ]; then
+  curl -sSf -o "$TOOLS_DIR/elan-init.sh" https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
+  sh "$TOOLS_DIR/elan-init.sh" -y --default-toolchain none --no-modify-path
 fi
 elan --version
 
@@ -353,10 +365,9 @@ install_lean_tool 1.13 lean4lean   https://github.com/digama0/lean4lean      "$L
 
 # -------------------------------------------------------------------------------------------------
 say "1.14 Install the Rust compiler"
-export PATH="$HOME/.cargo/bin:$PATH"
-if ! command -v cargo >/dev/null 2>&1; then
-  curl -sSf -o "$WORK_DIR/rustup-init.sh" https://sh.rustup.rs
-  sh "$WORK_DIR/rustup-init.sh" -y --profile minimal
+if [ ! -x "$CARGO_HOME/bin/cargo" ]; then
+  curl -sSf -o "$TOOLS_DIR/rustup-init.sh" https://sh.rustup.rs
+  sh "$TOOLS_DIR/rustup-init.sh" -y --profile minimal --no-modify-path
 fi
 cargo --version
 
@@ -382,7 +393,7 @@ fi
 say "Summary"
 if [ "${#FAILED[@]}" -eq 0 ]; then
   echo "The project $PROJECT and all software are installed."
-  echo "Next step: ./run-checks.sh (with the same WORK_DIR, if you set one). It checks the project $PROJECT."
+  echo "Next step: ./run-checks.sh, started from the same folder ($WORK_DIR). It checks the project $PROJECT."
 else
   echo "The project $PROJECT is installed, and all software except: ${FAILED[*]}"
   echo "run-checks.sh will report the steps that need the missing software as SKIPPED."

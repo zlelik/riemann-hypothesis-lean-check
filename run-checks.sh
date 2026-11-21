@@ -2,11 +2,13 @@
 #
 # run-checks.sh
 #
-# Part 2 of 2 for verifying a Lean proof; run install-software.sh first. README.md explains every
-# step in section "2. Verification"; this script prints the same step numbers.
+# Part 2 of 2 for verifying a Lean proof; run install-software.sh first, from the same folder.
+# README.md explains every step in section "2. Verification"; this script prints the same step
+# numbers. All steps are automatic.
 #
 # It checks the project that install-software.sh installed last (its name is in the file
-# $WORK_DIR/selected-project). To check another installed project, set PROJECT, for example:
+# selected-project in the working folder). To check another installed project, set PROJECT, for
+# example:
 #   PROJECT=test-project ./run-checks.sh
 #
 #   2.1   the project files are identical to the published files; the library versions are pinned
@@ -14,18 +16,17 @@
 #   2.3   the libraries used by the build are at the pinned versions
 #   2.4   the build messages contain no errors and no "declaration uses 'sorry'"
 #   2.5   #print axioms: the main theorems use only propext, Classical.choice and Quot.sound
-#   2.6   the exact statements of the main theorems are printed
-#   2.7   a person reads those statements (this script only reminds you)
-#   2.8   leanchecker --fresh: Lean's kernel checks every stored declaration again, in a new process
-#   2.9   lean4export: the main theorems and everything they depend on are written to one file
-#   2.10  nanoda: an external type checker, written separately in Rust, checks that file
-#   2.11  Lean4Lean: a second implementation of Lean's kernel, written in Lean, checks every
+#   2.6   the statements of the main theorems are exactly the reference statements in this script
+#   2.7   leanchecker --fresh: Lean's kernel checks every stored declaration again, in a new process
+#   2.8   lean4export: the main theorems and everything they depend on are written to one file
+#   2.9   nanoda: an external type checker, written separately in Rust, checks that file
+#   2.10  Lean4Lean: a second implementation of Lean's kernel, written in Lean, checks every
 #         stored declaration
 #
-# Results: $WORK_DIR/<project>/results/ (one log file per step, and summary.txt)
+# Results: check-<project>/results/ in the working folder (one log file per step, and summary.txt)
 #
 # Optional settings (environment variables):
-#   WORK_DIR, TOOLS_DIR   as in install-software.sh
+#   WORK_DIR, TOOLS_DIR   as in install-software.sh (default: the folder from which you start it)
 #   PROJECT               riemann-hypothesis or test-project (default: the project installed last)
 #   NANODA_CMD            complete command that runs nanoda, if the default command does not fit
 #                         the installed nanoda version (see the nanoda_lib README)
@@ -34,9 +35,17 @@
 
 set -uo pipefail
 
-WORK_DIR="${WORK_DIR:-$HOME/rh-check}"
+WORK_DIR="${WORK_DIR:-$PWD}"
+[ -d "$WORK_DIR" ] || { echo "ERROR: the folder $WORK_DIR does not exist."; exit 1; }
+WORK_DIR="$(cd "$WORK_DIR" && pwd)"
 TOOLS_DIR="${TOOLS_DIR:-$WORK_DIR/tools}"
-export PATH="$HOME/.elan/bin:$HOME/.cargo/bin:$PATH"
+
+# The same locations as in install-software.sh: everything is inside the working folder.
+export ELAN_HOME="$TOOLS_DIR/elan"
+export RUSTUP_HOME="$TOOLS_DIR/rustup"
+export CARGO_HOME="$TOOLS_DIR/cargo"
+export MATHLIB_CACHE_DIR="$TOOLS_DIR/mathlib-cache"
+export PATH="$ELAN_HOME/bin:$CARGO_HOME/bin:$PATH"
 
 # Library versions that lake-manifest.json must pin (README.md, section "Checksums").
 PINNED_LIBRARIES=(
@@ -65,15 +74,82 @@ case "$PROJECT" in
     THEOREMS=(sin_sq_add_cos_sq_eq_one)
     STATEMENTS=(SinSqAddCosSq)
     # Checksum that install-software.sh recorded in step 1.8, when it unpacked the test project.
-    EXPECTED_FILES_SHA256="$(cat "$WORK_DIR/test-project/files.sha256" 2>/dev/null)" ;;
+    EXPECTED_FILES_SHA256="$(cat "$WORK_DIR/check-test-project/files.sha256" 2>/dev/null)" ;;
   "")
-    echo "ERROR: no project is installed yet ($WORK_DIR/selected-project not found). Run install-software.sh first."
+    echo "ERROR: no project is installed in $WORK_DIR (the file selected-project is missing)."
+    echo "Run install-software.sh first, from the same folder."
     exit 1 ;;
   *)
     echo "ERROR: unknown project '$PROJECT'; use riemann-hypothesis or test-project."
     exit 1 ;;
 esac
-PROJECT_WORK_DIR="$WORK_DIR/$PROJECT"
+
+# Reference statements for step 2.6. Lean must accept every "example" in this file. Each "rfl"
+# example says that a statement of the project is exactly the reference statement written here;
+# the examples at the end say that each main theorem proves exactly its statement.
+write_statement_check() {
+  case "$PROJECT" in
+    riemann-hypothesis) cat <<'EOF'
+import Main
+
+set_option autoImplicit false
+set_option maxSynthPendingDepth 3
+
+-- The Riemann Hypothesis, as defined in Mathlib (Mathlib/NumberTheory/LSeries/RiemannZeta.lean):
+-- every zero s of the Riemann zeta function, except the negative even integers and s = 1, has
+-- real part 1/2.
+example : RiemannHypothesis =
+    (∀ (s : ℂ) (_ : riemannZeta s = 0) (_ : ¬∃ n : ℕ, s = -2 * (n + 1)) (_ : s ≠ 1), s.re = 1 / 2) :=
+  rfl
+
+-- The same statement, as written in the project.
+example : RiemannZetaZerosOnLine =
+    (∀ s : ℂ, riemannZeta s = 0 → (¬∃ n : ℕ, s = -2 * ((n : ℂ) + 1)) → s ≠ 1 → s.re = 1 / 2) :=
+  rfl
+
+-- Dirichlet L-functions have no zeros with real part greater than 1/2 (the trivial character
+-- at s = 1, where its L-function has a pole, is excluded).
+example : DirichletLNonvanishingRightOfHalf =
+    (∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N) (s : ℂ),
+      1 / 2 < s.re → (χ ≠ 1 ∨ s ≠ 1) → DirichletCharacter.LFunction χ s ≠ 0) :=
+  rfl
+
+-- Every zero of a Dirichlet L-function with real part between 0 and 1 has real part 1/2.
+example : DirichletLZerosOnLine =
+    (∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N) (s : ℂ),
+      0 < s.re → s.re < 1 → DirichletCharacter.LFunction χ s = 0 → s.re = 1 / 2) :=
+  rfl
+
+-- The same, for primitive Dirichlet characters.
+example : PrimitiveDirichletLZerosOnLine =
+    (∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N), χ.IsPrimitive →
+      ∀ s : ℂ, 0 < s.re → s.re < 1 → DirichletCharacter.LFunction χ s = 0 → s.re = 1 / 2) :=
+  rfl
+
+-- Each main theorem proves exactly its statement.
+example : RiemannHypothesis := riemannHypothesis
+example : RiemannZetaZerosOnLine := riemannZeta_eq_zero_re
+example : DirichletLNonvanishingRightOfHalf := LFunction_ne_zero_of_half_lt_re
+example : DirichletLZerosOnLine := LFunction_eq_zero_re
+example : PrimitiveDirichletLZerosOnLine := LFunction_eq_zero_re_of_isPrimitive
+EOF
+      ;;
+    test-project) cat <<'EOF'
+import Main
+
+set_option autoImplicit false
+
+-- For every real number x: sin(x)^2 + cos(x)^2 = 1.
+example : SinSqAddCosSq = (∀ x : ℝ, Real.sin x ^ 2 + Real.cos x ^ 2 = 1) := rfl
+
+-- The main theorem proves exactly this statement.
+example : SinSqAddCosSq := sin_sq_add_cos_sq_eq_one
+EOF
+      ;;
+  esac
+}
+
+PROJECT_WORK_DIR="$WORK_DIR/check-$PROJECT"
 PROJECT_DIR="$PROJECT_WORK_DIR/lean"
 RESULTS_DIR="$PROJECT_WORK_DIR/results"
 CHECKS_DIR="$PROJECT_WORK_DIR/checks"
@@ -82,14 +158,14 @@ LEAN4EXPORT_BIN="$TOOLS_DIR/lean4export/.lake/build/bin/lean4export"
 LEAN4LEAN_BIN="$TOOLS_DIR/lean4lean/.lake/build/bin/lean4lean"
 NANODA_BIN="$TOOLS_DIR/nanoda_lib/target/release/nanoda_bin"
 
-[ -d "$PROJECT_DIR" ] || { echo "ERROR: $PROJECT_DIR not found. Run install-software.sh first."; exit 1; }
+[ -d "$PROJECT_DIR" ] || { echo "ERROR: $PROJECT_DIR not found. Run install-software.sh first, from the same folder."; exit 1; }
 mkdir -p "$RESULTS_DIR" "$CHECKS_DIR"
 SUMMARY="$RESULTS_DIR/summary.txt"
 ALL_PASSED=1
 
-result() {   # $1 = step, $2 = PASSED, FAILED, SKIPPED or "TO DO", $3 = details
+result() {   # $1 = step, $2 = PASSED, FAILED or SKIPPED, $3 = details
   printf '%-52s %-8s %s\n' "$1" "$2" "$3" | tee -a "$SUMMARY"
-  if [ "$2" = FAILED ]; then ALL_PASSED=0; fi
+  if [ "$2" != PASSED ]; then ALL_PASSED=0; fi
 }
 start_timer() { T0=$(date +%s); }
 elapsed() {
@@ -207,32 +283,31 @@ else
 fi
 
 # -------------------------------------------------------------------------------------------------
-heading "2.6 Exact statements of the main theorems"
-{ echo "import Main"; echo
-  for t in "${THEOREMS[@]}"; do echo "#check @$t"; done; echo
-  for d in "${STATEMENTS[@]}"; do echo "#print $d"; done; } > "$CHECKS_DIR/CheckStatements.lean"
-if (cd "$PROJECT_DIR" && lake env lean "$CHECKS_DIR/CheckStatements.lean") > "$RESULTS_DIR/statements.txt" 2>&1; then
-  result "2.6 Statements printed" PASSED "see $RESULTS_DIR/statements.txt"
+heading "2.6 Statements of the main theorems are the reference statements"
+write_statement_check > "$CHECKS_DIR/CheckStatements.lean"
+start_timer
+if (cd "$PROJECT_DIR" && lake env lean "$CHECKS_DIR/CheckStatements.lean") > "$RESULTS_DIR/statements.log" 2>&1 \
+     && ! grep -q "error:" "$RESULTS_DIR/statements.log"; then
+  result "2.6 Statements are the reference statements" PASSED "statements checked: ${#STATEMENTS[@]}, theorems checked: ${#THEOREMS[@]}; $(elapsed)"
 else
-  result "2.6 Statements printed" FAILED "Lean could not run CheckStatements.lean; see $RESULTS_DIR/statements.txt"
+  result "2.6 Statements are the reference statements" FAILED "see $RESULTS_DIR/statements.log"
 fi
-result "2.7 Statements read by a person" "TO DO" "read $RESULTS_DIR/statements.txt (README.md, step 2.7)"
 
 # -------------------------------------------------------------------------------------------------
-heading "2.8 leanchecker (Lean's kernel again, in a new process)"
+heading "2.7 leanchecker (Lean's kernel again, in a new process)"
 if (cd "$PROJECT_DIR" && lake env sh -c 'command -v leanchecker') >/dev/null 2>&1; then
   start_timer
   if (cd "$PROJECT_DIR" && lake env leanchecker --fresh Main) > "$RESULTS_DIR/leanchecker.log" 2>&1; then
-    result "2.8 leanchecker: Lean's kernel again" PASSED "$(elapsed)"
+    result "2.7 leanchecker: Lean's kernel again" PASSED "$(elapsed)"
   else
-    result "2.8 leanchecker: Lean's kernel again" FAILED "$(elapsed); see $RESULTS_DIR/leanchecker.log"
+    result "2.7 leanchecker: Lean's kernel again" FAILED "$(elapsed); see $RESULTS_DIR/leanchecker.log"
   fi
 else
-  result "2.8 leanchecker: Lean's kernel again" FAILED "leanchecker not found; it is part of Lean 4.28.0 and newer"
+  result "2.7 leanchecker: Lean's kernel again" FAILED "leanchecker not found; it is part of Lean 4.28.0 and newer"
 fi
 
 # -------------------------------------------------------------------------------------------------
-heading "2.9 lean4export (write the main theorems and everything they depend on to $EXPORT_FILE)"
+heading "2.8 lean4export (write the main theorems and everything they depend on to $EXPORT_FILE)"
 EXPORT_OK=0
 if [ -x "$LEAN4EXPORT_BIN" ]; then
   start_timer
@@ -241,19 +316,19 @@ if [ -x "$LEAN4EXPORT_BIN" ]; then
   if (cd "$PROJECT_DIR" && LEAN_ABORT_ON_PANIC=1 lake env "$LEAN4EXPORT_BIN" Main -- "${THEOREMS[@]}") \
        > "$EXPORT_FILE" 2> "$RESULTS_DIR/lean4export.log" && [ -s "$EXPORT_FILE" ]; then
     EXPORT_OK=1
-    result "2.9 Export for nanoda" PASSED "$(du -h "$EXPORT_FILE" | cut -f1) written; $(elapsed)"
+    result "2.8 Export for nanoda" PASSED "$(du -h "$EXPORT_FILE" | cut -f1) written; $(elapsed)"
   else
-    result "2.9 Export for nanoda" FAILED "see $RESULTS_DIR/lean4export.log"
+    result "2.8 Export for nanoda" FAILED "see $RESULTS_DIR/lean4export.log"
   fi
 else
-  result "2.9 Export for nanoda" SKIPPED "lean4export is not installed ($LEAN4EXPORT_BIN)"
+  result "2.8 Export for nanoda" SKIPPED "lean4export is not installed ($LEAN4EXPORT_BIN)"
 fi
 
 # -------------------------------------------------------------------------------------------------
-heading "2.10 nanoda (external type checker written in Rust)"
+heading "2.9 nanoda (external type checker written in Rust)"
 # Settings as described in the nanoda_lib README: only the three standard axioms are allowed, and
-# any other axiom in the export file stops the check with an error. nanoda also prints the main
-# theorems and their statements back, as nanoda itself reads them.
+# any other axiom in the export file stops the check with an error. The main theorems and their
+# statements must be in the export file; nanoda prints them into its log.
 cat > "$CHECKS_DIR/nanoda-config.json" <<EOF
 {
   "export_file_path": "$EXPORT_FILE",
@@ -271,26 +346,26 @@ EOF
 if [ -n "${NANODA_CMD:-}" ]; then
   start_timer
   if bash -c "$NANODA_CMD" > "$RESULTS_DIR/nanoda.log" 2>&1; then
-    result "2.10 nanoda: external type checker" PASSED "$(elapsed)"
+    result "2.9 nanoda: external type checker" PASSED "$(elapsed)"
   else
-    result "2.10 nanoda: external type checker" FAILED "$(elapsed); see $RESULTS_DIR/nanoda.log"
+    result "2.9 nanoda: external type checker" FAILED "$(elapsed); see $RESULTS_DIR/nanoda.log"
   fi
 elif [ ! -x "$NANODA_BIN" ]; then
-  result "2.10 nanoda: external type checker" SKIPPED "nanoda is not installed ($NANODA_BIN)"
+  result "2.9 nanoda: external type checker" SKIPPED "nanoda is not installed ($NANODA_BIN)"
 elif [ "$EXPORT_OK" -ne 1 ]; then
-  result "2.10 nanoda: external type checker" SKIPPED "no export file (step 2.9)"
+  result "2.9 nanoda: external type checker" SKIPPED "no export file (step 2.8)"
 else
   start_timer
   if "$NANODA_BIN" "$CHECKS_DIR/nanoda-config.json" > "$RESULTS_DIR/nanoda.log" 2>&1 \
        && grep -q "declarations with no errors" "$RESULTS_DIR/nanoda.log"; then
-    result "2.10 nanoda: external type checker" PASSED "$(grep -o 'Checked [0-9]* declarations' "$RESULTS_DIR/nanoda.log" | tail -n 1); $(elapsed)"
+    result "2.9 nanoda: external type checker" PASSED "$(grep -o 'Checked [0-9]* declarations' "$RESULTS_DIR/nanoda.log" | tail -n 1); $(elapsed)"
   else
-    result "2.10 nanoda: external type checker" FAILED "$(elapsed); see $RESULTS_DIR/nanoda.log"
+    result "2.9 nanoda: external type checker" FAILED "$(elapsed); see $RESULTS_DIR/nanoda.log"
   fi
 fi
 
 # -------------------------------------------------------------------------------------------------
-heading "2.11 Lean4Lean (Lean's kernel written again in Lean)"
+heading "2.10 Lean4Lean (Lean's kernel written again in Lean)"
 if [ -n "${LEAN4LEAN_CMD:-}" ] || [ -x "$LEAN4LEAN_BIN" ]; then
   start_timer
   if [ -n "${LEAN4LEAN_CMD:-}" ]; then
@@ -299,19 +374,22 @@ if [ -n "${LEAN4LEAN_CMD:-}" ] || [ -x "$LEAN4LEAN_BIN" ]; then
     (cd "$PROJECT_DIR" && lake env "$LEAN4LEAN_BIN" --fresh Main) > "$RESULTS_DIR/lean4lean.log" 2>&1
   fi
   if [ $? -eq 0 ]; then
-    result "2.11 Lean4Lean: second kernel implementation" PASSED "$(elapsed)"
+    checked=$(grep -o 'checked [0-9]* declarations' "$RESULTS_DIR/lean4lean.log" | tail -n 1)
+    result "2.10 Lean4Lean: second kernel implementation" PASSED "${checked:+$checked; }$(elapsed)"
   else
-    result "2.11 Lean4Lean: second kernel implementation" FAILED "$(elapsed); see $RESULTS_DIR/lean4lean.log"
+    result "2.10 Lean4Lean: second kernel implementation" FAILED "$(elapsed); see $RESULTS_DIR/lean4lean.log"
   fi
 else
-  result "2.11 Lean4Lean: second kernel implementation" SKIPPED "Lean4Lean is not installed ($LEAN4LEAN_BIN)"
+  result "2.10 Lean4Lean: second kernel implementation" SKIPPED "Lean4Lean is not installed ($LEAN4LEAN_BIN)"
 fi
 
 # -------------------------------------------------------------------------------------------------
 { echo; echo "Finished: $(date)"; } >> "$SUMMARY"
 echo
-echo "Summary written to $SUMMARY"
-echo
-echo "Step 2.7 is for a person: read $RESULTS_DIR/statements.txt and confirm that the"
-echo "statements say exactly what the project claims (README.md, step 2.7)."
-if [ "$ALL_PASSED" -eq 1 ]; then exit 0; else exit 1; fi
+if [ "$ALL_PASSED" -eq 1 ]; then
+  echo "All 10 steps PASSED. Summary: $SUMMARY"
+  exit 0
+else
+  echo "Not all steps PASSED. Summary: $SUMMARY"
+  exit 1
+fi
