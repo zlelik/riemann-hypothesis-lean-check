@@ -24,11 +24,18 @@ cd riemann-hypothesis-lean-check
 ```
 
 If you want to run it in Docker container, use this command:
+
 **Linux:**
-`docker run -it --rm --name rh-check -v "$PWD":/root/rh-check -w /root/rh-check buildpack-deps:noble bash`
+
+```
+docker run -it --rm --name rh-check -v "$PWD":/root/rh-check -w /root/rh-check buildpack-deps:noble bash
+```
 
 **Windows (memory configuration might be needed):**
-`docker run -it --rm --name rh-check -v "%cd%:/root/rh-check" -w /root/rh-check buildpack-deps:noble bash`
+
+```
+docker run -it --rm --name rh-check -v "%cd%:/root/rh-check" -w /root/rh-check buildpack-deps:noble bash
+```
 
 **Everything is written into the folder from which you start the scripts**: the downloaded files, elan, Lean, Rust, the checking tools, the Lean projects and the results. Nothing is written into your home folder. The only exception: if system tools are missing, `install-software.sh` installs them into the operating system with `apt-get` (step 1.2). Start both scripts from the same folder, normally the repository folder.
 
